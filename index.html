@@ -1,0 +1,510 @@
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Professional Sand Tetris</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --ui-blue: #2a4cc7;
+            --bg-main: #1a36b1;
+            --container-dark: #050a24;
+        }
+        body {
+            background-color: var(--bg-main);
+            margin: 0;
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+            display: flex;
+            flex-direction: column;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            touch-action: none;
+        }
+
+        /* Top HUD Styling */
+        .top-hud {
+            padding: 10px 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            z-index: 50;
+        }
+        .stats-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .stat-capsule {
+            background: #0d1b54;
+            border: 2px solid #3b5bdb;
+            border-radius: 12px;
+            padding: 4px 10px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: white;
+            font-weight: bold;
+            font-size: 13px;
+        }
+        .score-big {
+            text-align: center;
+            font-size: 42px;
+            font-weight: 900;
+            color: white;
+            line-height: 1;
+            margin: 2px 0;
+            text-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+
+        /* Progress Bar */
+        .progress-container {
+            position: relative;
+            height: 24px;
+            background: #0a133d;
+            border: 2px solid #3b5bdb;
+            border-radius: 10px;
+            overflow: hidden;
+            width: 100%;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(to right, #4caf50, #8bc34a);
+            width: 0%;
+            transition: width 0.3s;
+        }
+        .progress-text {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 10px;
+            align-items: center;
+            font-size: 11px;
+            font-weight: bold;
+            color: white;
+            z-index: 2;
+        }
+
+        /* Layout */
+        #main-layout {
+            flex-grow: 1;
+            display: flex;
+            padding: 8px;
+            gap: 8px;
+            height: 0;
+        }
+        #canvas-container {
+            flex-grow: 1;
+            background: var(--container-dark);
+            border: 3px solid #3b5bdb;
+            border-radius: 18px;
+            position: relative;
+            overflow: hidden;
+        }
+        canvas {
+            width: 100%;
+            height: 100%;
+            image-rendering: pixelated;
+        }
+
+        /* Red Danger Line */
+        .danger-line {
+            position: absolute;
+            top: 25%;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: #ff007f;
+            box-shadow: 0 0 8px #ff007f;
+            z-index: 5;
+        }
+
+        /* Side Inventory */
+        #side-inventory {
+            width: 75px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            justify-content: center;
+        }
+        .inv-slot {
+            width: 70px;
+            height: 70px;
+            background: #0d1b54;
+            border: 2px solid #3b5bdb;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+        .inv-slot.active {
+            border-color: #ffeb3b;
+            box-shadow: 0 0 12px rgba(255, 235, 59, 0.4);
+        }
+
+        /* Game Over Modal */
+        #game-over {
+            position: fixed;
+            inset: 0;
+            background: rgba(5, 10, 36, 0.95);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+        .btn-restart {
+            margin-top: 20px;
+            padding: 12px 35px;
+            background: #4caf50;
+            color: white;
+            border-radius: 25px;
+            font-weight: bold;
+            font-size: 1.2rem;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-over">
+        <h1 class="text-white text-5xl font-black mb-2 text-center">GAME OVER</h1>
+        <p id="final-score" class="text-yellow-400 text-2xl font-bold">Score: 0</p>
+        <button class="btn-restart" onclick="location.reload()">RESTART</button>
+    </div>
+
+    <div class="top-hud">
+        <div class="stats-row">
+            <div class="stat-capsule">
+                <span class="text-pink-500">◆</span> <span id="gems">505</span>
+            </div>
+            <div class="stat-capsule">
+                <span class="text-yellow-400">👑</span> <span id="high-score">25937</span>
+            </div>
+        </div>
+        <div class="score-big" id="current-score">0</div>
+        <div class="progress-container">
+            <div class="progress-fill" id="progress-bar"></div>
+            <div class="progress-text">
+                <span id="prog-val">0</span>
+                <span>25000</span>
+            </div>
+        </div>
+    </div>
+
+    <div id="main-layout">
+        <div id="canvas-container">
+            <div class="danger-line"></div>
+            <canvas id="gameCanvas"></canvas>
+        </div>
+
+        <div id="side-inventory">
+            <div id="slot-0" class="inv-slot active" onclick="setSlot(0)">
+                <canvas id="pre-0" width="55" height="55"></canvas>
+            </div>
+            <div id="slot-1" class="inv-slot" onclick="setSlot(1)">
+                <canvas id="pre-1" width="55" height="55"></canvas>
+            </div>
+            <div id="slot-2" class="inv-slot" onclick="setSlot(2)">
+                <canvas id="pre-2" width="55" height="55"></canvas>
+            </div>
+        </div>
+    </div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const scoreEl = document.getElementById('current-score');
+    const progressBar = document.getElementById('progress-bar');
+    const gameOverScreen = document.getElementById('game-over');
+
+    const COLS = 60;  
+    const ROWS = 100; 
+    const BLOCK_UNIT = 6; 
+    const DANGER_ROW = 25; 
+
+    let cellW, cellH;
+    let grid = Array(ROWS).fill().map(() => Array(COLS).fill(null));
+    let activePiece = null;
+    let score = 0;
+    let selectedIdx = 0;
+    let inventory = [null, null, null];
+    let isGameOver = false;
+    let isDragging = false;
+    let isFalling = false;
+
+    const COLORS = ['#FF3B3B', '#FFEB3B', '#3B82F6', '#22C55E', '#A855F7', '#F97316'];
+    const SHAPES = [
+        [[1, 1, 1, 1]], 
+        [[1, 1], [1, 1]], 
+        [[0, 1, 0], [1, 1, 1]], 
+        [[1, 0, 0], [1, 1, 1]], 
+        [[0, 1, 1], [1, 1, 0]]
+    ];
+
+    function resize() {
+        const rect = canvas.parentElement.getBoundingClientRect();
+        canvas.width = rect.width;
+        canvas.height = rect.height;
+        cellW = canvas.width / COLS;
+        cellH = canvas.height / ROWS;
+    }
+
+    function createPiece() {
+        return {
+            shape: SHAPES[Math.floor(Math.random() * SHAPES.length)],
+            color: COLORS[Math.floor(Math.random() * COLORS.length)]
+        };
+    }
+
+    function drawPreview(idx) {
+        const pc = document.getElementById(`pre-${idx}`);
+        const pctx = pc.getContext('2d');
+        const p = inventory[idx];
+        pctx.clearRect(0, 0, 55, 55);
+        if (!p) return;
+        const s = 8;
+        const w = p.shape[0].length * s;
+        const h = p.shape.length * s;
+        const ox = (55 - w) / 2;
+        const oy = (55 - h) / 2;
+        pctx.fillStyle = p.color;
+        p.shape.forEach((row, y) => {
+            row.forEach((val, x) => {
+                if (val) pctx.fillRect(ox + x * s, oy + y * s, s - 1, s - 1);
+            });
+        });
+    }
+
+    function setSlot(idx) {
+        if (isGameOver || isDragging || isFalling) return;
+        selectedIdx = idx;
+        document.querySelectorAll('.inv-slot').forEach((s, i) => {
+            s.classList.toggle('active', i === idx);
+        });
+    }
+
+    function solidify() {
+        if (!activePiece) return;
+        activePiece.shape.forEach((row, y) => {
+            row.forEach((val, x) => {
+                if (val) {
+                    for (let sy = 0; sy < BLOCK_UNIT; sy++) {
+                        for (let sx = 0; sx < BLOCK_UNIT; sx++) {
+                            let px = activePiece.x + (x * BLOCK_UNIT) + sx;
+                            let py = activePiece.y + (y * BLOCK_UNIT) + sy;
+                            if (py >= 0 && py < ROWS && px >= 0 && px < COLS) {
+                                grid[py][px] = activePiece.color;
+                            }
+                        }
+                    }
+                }
+            });
+        });
+
+        // Game Over Check
+        for (let x = 0; x < COLS; x++) {
+            if (grid[DANGER_ROW][x] !== null) {
+                isGameOver = true;
+                document.getElementById('final-score').innerText = `Score: ${score}`;
+                gameOverScreen.style.display = 'flex';
+                return;
+            }
+        }
+
+        activePiece = null;
+        isFalling = false;
+        score += 26;
+        updateUI();
+        
+        inventory[selectedIdx] = createPiece();
+        drawPreview(selectedIdx);
+    }
+
+    function updateUI() {
+        scoreEl.innerText = score;
+        document.getElementById('prog-val').innerText = score;
+        const p = Math.min((score / 25000) * 100, 100);
+        progressBar.style.width = p + '%';
+    }
+
+    function checkClears() {
+        const toClear = new Set();
+        COLORS.forEach(color => {
+            let leftPixels = [];
+            for(let y=0; y<ROWS; y++) if(grid[y][0] === color) leftPixels.push(y * COLS);
+            if(leftPixels.length === 0) return;
+            const visited = new Uint8Array(ROWS * COLS);
+            const queue = [...leftPixels];
+            leftPixels.forEach(i => visited[i] = 1);
+            let reachedRight = false;
+            let head = 0;
+            while(head < queue.length) {
+                const idx = queue[head++];
+                const x = idx % COLS;
+                const y = Math.floor(idx / COLS);
+                if(x === COLS - 1) { reachedRight = true; break; }
+                const neighbors = [[x+1,y],[x-1,y],[x,y+1],[x,y-1]];
+                for(const [nx, ny] of neighbors) {
+                    if(nx >= 0 && nx < COLS && ny >= 0 && ny < ROWS) {
+                        const ni = ny * COLS + nx;
+                        if(!visited[ni] && grid[ny][nx] === color) {
+                            visited[ni] = 1;
+                            queue.push(ni);
+                        }
+                    }
+                }
+            }
+            if(reachedRight) toClear.add(color);
+        });
+        if(toClear.size > 0) {
+            for(let y=0; y<ROWS; y++) {
+                for(let x=0; x<COLS; x++) {
+                    if(toClear.has(grid[y][x])) grid[y][x] = null;
+                }
+            }
+            score += 1500;
+            updateUI();
+        }
+    }
+
+    function updatePhysics() {
+        for (let y = ROWS - 2; y >= 0; y--) {
+            for (let x = 0; x < COLS; x++) {
+                if (grid[y][x]) {
+                    const c = grid[y][x];
+                    if (!grid[y + 1][x]) {
+                        grid[y + 1][x] = c;
+                        grid[y][x] = null;
+                    } else {
+                        let dir = Math.random() < 0.5 ? -1 : 1;
+                        if (x + dir >= 0 && x + dir < COLS && !grid[y + 1][x + dir]) {
+                            grid[y + 1][x + dir] = c;
+                            grid[y][x] = null;
+                        }
+                    }
+                }
+            }
+        }
+        checkClears();
+    }
+
+    function checkCollision(p, dx, dy) {
+        for (let r = 0; r < p.shape.length; r++) {
+            for (let c = 0; c < p.shape[r].length; c++) {
+                if (p.shape[r][c]) {
+                    for (let sy = 0; sy < BLOCK_UNIT; sy++) {
+                        for (let sx = 0; sx < BLOCK_UNIT; sx++) {
+                            let nx = p.x + (c * BLOCK_UNIT) + sx + dx;
+                            let ny = p.y + (r * BLOCK_UNIT) + sy + dy;
+                            if (nx < 0 || nx >= COLS || ny >= ROWS) return true;
+                            if (ny >= 0 && grid[ny][nx]) return true;
+                        }
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        for (let y = 0; y < ROWS; y++) {
+            for (let x = 0; x < COLS; x++) {
+                if (grid[y][x]) {
+                    ctx.fillStyle = grid[y][x];
+                    ctx.fillRect(x * cellW, y * cellH, cellW + 0.6, cellH + 0.6);
+                }
+            }
+        }
+        if (activePiece) {
+            ctx.fillStyle = activePiece.color;
+            activePiece.shape.forEach((row, y) => {
+                row.forEach((val, x) => {
+                    if (val) {
+                        const px = (activePiece.x + x * BLOCK_UNIT) * cellW;
+                        const py = (activePiece.y + y * BLOCK_UNIT) * cellH;
+                        const size = BLOCK_UNIT * cellW;
+                        ctx.fillRect(px, py, size, size);
+                        // Shine effects
+                        ctx.fillStyle = 'rgba(255,255,255,0.3)';
+                        ctx.fillRect(px, py, size, 2);
+                        ctx.fillRect(px, py, 2, size);
+                        ctx.fillStyle = 'rgba(0,0,0,0.2)';
+                        ctx.fillRect(px, py + size - 2, size, 2);
+                        ctx.fillStyle = activePiece.color;
+                    }
+                });
+            });
+        }
+    }
+
+    function loop() {
+        if (isGameOver) return;
+        
+        if (isFalling && activePiece) {
+            // Speed of actual fall after release
+            const fallSpeed = 4;
+            if (!checkCollision(activePiece, 0, fallSpeed)) {
+                activePiece.y += fallSpeed;
+            } else {
+                // If collision, drop pixel by pixel to be precise before solidifying
+                while (!checkCollision(activePiece, 0, 1)) {
+                    activePiece.y++;
+                }
+                solidify();
+            }
+        }
+
+        updatePhysics();
+        draw();
+        requestAnimationFrame(loop);
+    }
+
+    canvas.addEventListener('touchstart', e => {
+        if (isGameOver || isFalling) return;
+        isDragging = true;
+        const rect = canvas.getBoundingClientRect();
+        const touch = e.touches[0];
+        const gridX = Math.floor((touch.clientX - rect.left) / cellW);
+        const gridY = Math.floor((touch.clientY - rect.top) / cellH);
+        
+        const data = inventory[selectedIdx];
+        activePiece = {
+            ...data,
+            x: Math.max(0, Math.min(gridX - Math.floor(data.shape[0].length * BLOCK_UNIT / 2), COLS - data.shape[0].length * BLOCK_UNIT)),
+            y: Math.max(0, Math.min(gridY - Math.floor(data.shape.length * BLOCK_UNIT / 2), ROWS - data.shape.length * BLOCK_UNIT))
+        };
+    }, {passive: false});
+
+    canvas.addEventListener('touchmove', e => {
+        if (!activePiece || isGameOver || isFalling) return;
+        e.preventDefault();
+        const rect = canvas.getBoundingClientRect();
+        const touch = e.touches[0];
+        const gridX = Math.floor((touch.clientX - rect.left) / cellW);
+        const gridY = Math.floor((touch.clientY - rect.top) / cellH);
+
+        activePiece.x = Math.max(0, Math.min(gridX - Math.floor(activePiece.shape[0].length * BLOCK_UNIT / 2), COLS - activePiece.shape[0].length * BLOCK_UNIT));
+        activePiece.y = Math.max(0, Math.min(gridY - Math.floor(activePiece.shape.length * BLOCK_UNIT / 2), ROWS - activePiece.shape.length * BLOCK_UNIT));
+    }, {passive: false});
+
+    canvas.addEventListener('touchend', e => {
+        if (!activePiece || isGameOver || isFalling) return;
+        isDragging = false;
+        isFalling = true; // Start the animated drop
+    });
+
+    window.addEventListener('resize', resize);
+    resize();
+    for(let i=0; i<3; i++) { inventory[i] = createPiece(); drawPreview(i); }
+    requestAnimationFrame(loop);
+</script>
+</body>
+</html>
+
+```
